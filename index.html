@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>플래피 버디 - Flappy Buddy</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Jua&family=Nunito:wght@800&display=swap" rel="stylesheet">
+  <style>
+    * {
+      font-family: 'Jua', 'Nunito', sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+    
+    /* CSS Canvas Container dynamic shadows */
+    .game-card {
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.3), 0 0 0 8px rgba(255, 255, 255, 0.4);
+    }
+
+    /* Bouncing animations */
+    @keyframes bounce-gentle {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+    
+    .animate-bounce-gentle {
+      animation: bounce-gentle 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse-glow {
+      0%, 100% { filter: drop-shadow(0 0 10px rgba(255, 230, 0, 0.8)); }
+      50% { filter: drop-shadow(0 0 22px rgba(255, 200, 0, 1)); }
+    }
+
+    .pulse-glow {
+      animation: pulse-glow 1.8s infinite;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-900 min-h-screen flex items-center justify-center p-2 md:p-4 overflow-hidden">
+
+  <div class="relative w-full max-w-[420px] aspect-[9/16] max-h-[92vh] game-card rounded-3xl overflow-hidden bg-slate-900 border-4 border-indigo-400/40 flex flex-col justify-between select-none">
+    
+    <!-- Top Bar UI: Audio Toggle & High Score -->
+    <div class="absolute top-4 left-4 right-4 z-20 flex justify-between items-center pointer-events-auto">
+      <button id="soundBtn" class="bg-slate-800/80 hover:bg-slate-700 backdrop-blur-md p-2.5 rounded-2xl shadow-md text-xl transition active:scale-95 flex items-center justify-center w-11 h-11 text-white border border-indigo-500/30">
+        🔊
+      </button>
+      <div class="bg-slate-800/80 backdrop-blur-md px-4 py-1.5 rounded-2xl shadow-md text-indigo-100 text-sm font-bold flex items-center gap-1.5 border border-indigo-500/30">
+        <span>👑 최고:</span>
+        <span id="highScoreText" class="text-amber-400 text-lg">0</span>
+      </div>
+    </div>
+
+    <!-- Live In-Game Score Display -->
+    <div id="gameScoreContainer" class="absolute top-16 left-0 right-0 z-20 flex items-center justify-center gap-2 pointer-events-none opacity-0 transition-opacity duration-300">
+      <!-- Lotus Leaf (연잎) SVG Icon -->
+      <svg class="w-10 h-10 md:w-12 md:h-12 drop-shadow-[0_4px_8px_rgba(0,0,0,0.6)]" viewBox="0 0 100 100">
+        <!-- Leaf Body with Notch -->
+        <path d="M 50 12 A 38 38 0 1 1 42 12 L 50 50 Z" fill="#22C55E" stroke="#15803D" stroke-width="4" stroke-linejoin="round"/>
+        <!-- Leaf Veins -->
+        <path d="M 50 50 L 50 16 M 50 50 L 22 28 M 50 50 L 16 58 M 50 50 L 28 82 M 50 50 L 72 82 M 50 50 L 84 58 M 50 50 L 78 28" stroke="#15803D" stroke-width="2.5" stroke-linecap="round"/>
+        <!-- Dew Drop on Leaf -->
+        <circle cx="62" cy="38" r="4" fill="#E0F2FE" opacity="0.9"/>
+        <circle cx="60.5" cy="36.5" r="1.5" fill="#FFFFFF"/>
+      </svg>
+      <span id="liveScore" class="text-6xl font-black text-amber-300 drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)] stroke-black">0</span>
+    </div>
+
+    <!-- Game Canvas Element -->
+    <canvas id="gameCanvas" class="w-full h-full block bg-slate-950 cursor-pointer"></canvas>
+
+    <!-- UI Overlay: START MENU -->
+    <div id="startOverlay" class="absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-950/40 backdrop-blur-[2px] p-6 text-center transition-all duration-300">
+      <div class="animate-bounce-gentle flex flex-col items-center">
+        <div class="w-24 h-24 mb-2 pulse-glow relative flex items-center justify-center">
+          <!-- Big Eyed Frog Icon SVG -->
+          <svg viewBox="0 0 100 100" class="w-full h-full">
+            <!-- Left Eye Bulge & Eyeball (2x Bigger) -->
+            <circle cx="32" cy="28" r="18" fill="#4ADE80" stroke="#15803D" stroke-width="3"/>
+            <circle cx="32" cy="28" r="13" fill="#FFFFFF"/>
+            <circle cx="34" cy="26" r="7" fill="#1E293B"/>
+            <circle cx="37" cy="23" r="3" fill="#FFFFFF"/>
+
+            <!-- Right Eye Bulge & Eyeball (2x Bigger) -->
+            <circle cx="68" cy="28" r="18" fill="#4ADE80" stroke="#15803D" stroke-width="3"/>
+            <circle cx="68" cy="28" r="13" fill="#FFFFFF"/>
+            <circle cx="70" cy="26" r="7" fill="#1E293B"/>
+            <circle cx="73" cy="23" r="3" fill="#FFFFFF"/>
+
+            <!-- Main Green Frog Body -->
+            <circle cx="50" cy="60" r="30" fill="#4ADE80" stroke="#15803D" stroke-width="3.5"/>
+            <!-- Belly -->
+            <circle cx="50" cy="65" r="18" fill="#DCFCE7"/>
+            <!-- Smile -->
+            <path d="M 38 62 Q 50 73 62 62" stroke="#15803D" stroke-width="3" fill="none" stroke-linecap="round"/>
+            <!-- Cheeks -->
+            <circle cx="30" cy="62" r="5.5" fill="#F472B6" opacity="0.6"/>
+            <circle cx="70" cy="62" r="5.5" fill="#F472B6" opacity="0.6"/>
+          </svg>
+        </div>
+        <h1 class="text-4xl md:text-5xl font-black text-indigo-100 drop-shadow-[0_5px_8px_rgba(0,0,0,0.8)] tracking-wide">
+          플래피 버디
+        </h1>
+        <p class="text-indigo-300 text-sm mt-1 font-semibold tracking-wider drop-shadow">✨ 별빛 아래 1분 챌린지!</p>
+      </div>
+
+      <div class="mt-8 bg-slate-900/90 backdrop-blur-md rounded-2xl p-5 shadow-2xl border border-indigo-500/30 max-w-xs w-full">
+        <!-- 난이도 선택 버튼 -->
+        <div class="mb-4">
+          <p class="text-xs text-indigo-200 mb-2 font-bold text-center">🎯 난이도 선택</p>
+          <div class="grid grid-cols-3 gap-2">
+            <button id="diffEasy" class="py-2 px-1 rounded-xl font-bold text-xs border transition-all bg-slate-800 text-emerald-400 border-emerald-500/50 hover:bg-emerald-950/50">🟢 쉬움</button>
+            <button id="diffNormal" class="py-2 px-1 rounded-xl font-extrabold text-xs border transition-all bg-amber-500 text-slate-950 border-amber-400 shadow-md scale-105">🟡 보통</button>
+            <button id="diffHard" class="py-2 px-1 rounded-xl font-bold text-xs border transition-all bg-slate-800 text-rose-400 border-rose-500/50 hover:bg-rose-950/50">🔴 어려움</button>
+          </div>
+        </div>
+
+        <div class="flex justify-center items-center gap-3 mb-4 text-indigo-200 text-sm font-bold">
+          <span class="bg-indigo-950 px-3 py-1.5 rounded-lg border border-indigo-700/50">🖱️ 화면 클릭</span>
+          <span>또는</span>
+          <span class="bg-indigo-950 px-3 py-1.5 rounded-lg border border-indigo-700/50">⌨️ 스페이스바</span>
+        </div>
+        <button id="startBtn" class="w-full py-3.5 bg-gradient-to-r from-sky-400 to-indigo-500 hover:from-sky-500 hover:to-indigo-600 active:scale-95 text-slate-950 font-black text-xl rounded-xl shadow-lg transform transition-all duration-150 border-b-4 border-indigo-800">
+          🎮 게임 시작하기
+        </button>
+      </div>
+    </div>
+
+    <!-- UI Overlay: GAME OVER MENU -->
+    <div id="gameOverOverlay" class="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm p-6 text-center opacity-0 pointer-events-none transition-all duration-300">
+      <div class="bg-white rounded-3xl p-6 shadow-2xl border-4 border-amber-300 max-w-xs w-full transform scale-90 transition-transform duration-300" id="gameOverCard">
+        <h2 class="text-3xl font-black text-rose-500 mb-1">게임 오버!</h2>
+        <p class="text-gray-500 text-xs mb-4">아쉽네요! 다시 도전해보세요.</p>
+
+        <!-- Scoreboard Card -->
+        <div class="bg-amber-50 rounded-2xl p-4 border border-amber-200 mb-5 flex flex-col gap-2">
+          <div class="flex justify-between items-center">
+            <span class="text-gray-600 font-bold text-sm">이번 점수</span>
+            <span id="finalScore" class="text-3xl font-black text-sky-600">0</span>
+          </div>
+          <hr class="border-amber-200">
+          <div class="flex justify-between items-center">
+            <span class="text-gray-600 font-bold text-sm">최고 기록 🏆</span>
+            <span id="finalHighScore" class="text-2xl font-black text-amber-600">0</span>
+          </div>
+        </div>
+
+        <button id="restartBtn" class="w-full py-3.5 bg-gradient-to-r from-emerald-400 to-green-500 hover:from-emerald-500 hover:to-green-600 active:scale-95 text-white font-black text-xl rounded-xl shadow-lg border-b-4 border-green-700 transition-all duration-150">
+          🔄 다시 하기
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    /* Audio Sound Effects Generator using Web Audio API (No external sound files required) */
+    class SoundSystem {
+      constructor() {
+        this.ctx = null;
+        this.enabled = true;
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) {
+            this.ctx = new AudioContext();
+          }
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      playJump() {
+        if (!this.enabled || !this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(380, this.ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(800, this.ctx.currentTime + 0.12);
+          
+          gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.12);
+        } catch(e) {}
+      }
+
+      playScore() {
+        if (!this.enabled || !this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          
+          osc.frequency.setValueAtTime(523.25, now); // C5
+          osc.frequency.setValueAtTime(659.25, now + 0.08); // E5
+          osc.frequency.setValueAtTime(783.99, now + 0.16); // G5
+
+          gain.gain.setValueAtTime(0.25, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.3);
+        } catch(e) {}
+      }
+
+      playHit() {
+        if (!this.enabled || !this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(180, this.ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.25);
+
+          gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.25);
+        } catch(e) {}
+      }
+
+      playGameOver() {
+        if (!this.enabled || !this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          
+          // Thud impact sound
+          this.playHit();
+
+          // Sad descending melody notes (G4 -> E4 -> C4 -> G3)
+          const notes = [392.00, 329.63, 261.63, 196.00];
+          notes.forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            
+            const noteTime = now + 0.15 + (idx * 0.12);
+            osc.frequency.setValueAtTime(freq, noteTime);
+            osc.frequency.exponentialRampToValueAtTime(freq * 0.85, noteTime + 0.22);
+
+            gain.gain.setValueAtTime(0.3, noteTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, noteTime + 0.22);
+
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(noteTime);
+            osc.stop(noteTime + 0.22);
+          });
+        } catch(e) {}
+      }
+    }
+
+    const sound = new SoundSystem();
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // UI elements
+    const startOverlay = document.getElementById('startOverlay');
+    const gameOverOverlay = document.getElementById('gameOverOverlay');
+    const gameOverCard = document.getElementById('gameOverCard');
+    const gameScoreContainer = document.getElementById('gameScoreContainer');
+    const liveScoreEl = document.getElementById('liveScore');
+    const finalScoreEl = document.getElementById('finalScore');
+    const finalHighScoreEl = document.getElementById('finalHighScore');
+    const highScoreText = document.getElementById('highScoreText');
+    const soundBtn = document.getElementById('soundBtn');
+    const startBtn = document.getElementById('startBtn');
+    const restartBtn = document.getElementById('restartBtn');
+
+    // Game State Enum
+    const STATE = { MENU: 0, PLAYING: 1, GAMEOVER: 2 };
+    let currentState = STATE.MENU;
+
+    // 난이도 설정 (기둥 간격, 이동 속도, 생성 주기)
+    const DIFFICULTY = {
+      EASY: { gap: 180, speed: 2.0, spawnInterval: 120 },
+      NORMAL: { gap: 150, speed: 2.6, spawnInterval: 100 },
+      HARD: { gap: 125, speed: 3.3, spawnInterval: 80 }
+    };
+    let currentDifficulty = 'NORMAL';
+
+    // Canvas Resolution Settings
+    let width = 360;
+    let height = 640;
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      width = rect.width;
+      height = rect.height;
+      canvas.width = width;
+      canvas.height = height;
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // High score from local storage
+    let highScore = parseInt(localStorage.getItem('flappy_buddy_highscore') || '0', 10);
+    highScoreText.textContent = highScore;
+
+    // Bird properties
+    const bird = {
+      x: 0,
+      y: 0,
+      radius: 18,
+      velocity: 0,
+      gravity: 0.42,
+      jumpImpulse: -7.8,
+      rotation: 0,
+      wingAngle: 0,
+      wingSpeed: 0.2,
+
+      reset() {
+        this.x = width * 0.28;
+        this.y = height * 0.45;
+        this.velocity = 0;
+        this.rotation = 0;
+      },
+
+      jump() {
+        this.velocity = this.jumpImpulse;
+        sound.playJump();
+      },
+
+      update() {
+        this.velocity += this.gravity;
+        this.y += this.velocity;
+
+        // Wing/Ear flapping animation
+        this.wingAngle += this.wingSpeed;
+
+        // Rotation physics according to velocity
+        if (this.velocity < 0) {
+          this.rotation = Math.max(-0.45, this.rotation - 0.08);
+        } else {
+          this.rotation = Math.min(1.1, this.rotation + 0.05);
+        }
+      },
+
+      draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.rotation);
+
+        // Shadow under frog
+        ctx.beginPath();
+        ctx.ellipse(0, this.radius + 6, this.radius * 0.8, 4, 0, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+        ctx.fill();
+
+        // Frog Back Feet
+        ctx.beginPath();
+        ctx.ellipse(-this.radius * 0.7, this.radius * 0.5, 7, 5, -0.3, 0, Math.PI * 2);
+        ctx.ellipse(this.radius * 0.7, this.radius * 0.5, 7, 5, 0.3, 0, Math.PI * 2);
+        ctx.fillStyle = '#4ADE80';
+        ctx.fill();
+        ctx.lineWidth = 1.8;
+        ctx.strokeStyle = '#15803D';
+        ctx.stroke();
+
+        // Main Green Head/Body
+        ctx.beginPath();
+        ctx.arc(0, 2, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = '#4ADE80';
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#15803D';
+        ctx.stroke();
+
+        // Light Green Belly Patch
+        ctx.beginPath();
+        ctx.arc(0, 6, this.radius * 0.6, 0, Math.PI * 2);
+        ctx.fillStyle = '#DCFCE7';
+        ctx.fill();
+
+        // HUGE Bulging Frog Eyes (2X Larger Eyes on top of head)
+        const eyeOffset = Math.sin(this.wingAngle) * 0.5;
+
+        // Left Eye
+        ctx.save();
+        ctx.translate(-this.radius * 0.5, -this.radius * 0.75 + eyeOffset);
+        ctx.beginPath();
+        ctx.arc(0, 0, 10, 0, Math.PI * 2); // Eye socket
+        ctx.fillStyle = '#4ADE80';
+        ctx.fill();
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = '#15803D';
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(0, 0, 8, 0, Math.PI * 2); // Eyeball (2x size)
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(2, -1, 4.5, 0, Math.PI * 2); // Pupil
+        ctx.fillStyle = '#1E293B';
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(3.5, -2.5, 1.8, 0, Math.PI * 2); // Catchlight
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fill();
+        ctx.restore();
+
+        // Right Eye
+        ctx.save();
+        ctx.translate(this.radius * 0.5, -this.radius * 0.75 - eyeOffset);
+        ctx.beginPath();
+        ctx.arc(0, 0, 10, 0, Math.PI * 2); // Eye socket
+        ctx.fillStyle = '#4ADE80';
+        ctx.fill();
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = '#15803D';
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(0, 0, 8, 0, Math.PI * 2); // Eyeball (2x size)
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(2, -1, 4.5, 0, Math.PI * 2); // Pupil
+        ctx.fillStyle = '#1E293B';
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(3.5, -2.5, 1.8, 0, Math.PI * 2); // Catchlight
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fill();
+        ctx.restore();
+
+        // Cute Frog Smile
+        ctx.beginPath();
+        ctx.arc(0, 3, this.radius * 0.5, 0.15 * Math.PI, 0.85 * Math.PI);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#15803D';
+        ctx.lineCap = 'round';
+        ctx.stroke();
+
+        // Cheek blush
+        ctx.beginPath();
+        ctx.arc(-this.radius * 0.55, 4, 4.5, 0, Math.PI * 2);
+        ctx.arc(this.radius * 0.55, 4, 4.5, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(244, 114, 182, 0.6)';
+        ctx.fill();
+
+        ctx.restore();
+      }
+    };
+
+    // Dreamy Sparkling Forest Background & Fireflies
+    const dreamyForest = {
+      fireflies: Array.from({ length: 40 }, () => ({
+        x: Math.random() * 360,
+        y: Math.random() * 500,
+        radius: Math.random() * 2.5 + 1.2,
+        alpha: Math.random(),
+        pulseSpeed: Math.random() * 0.04 + 0.015,
+        vx: (Math.random() - 0.5) * 0.4,
+        vy: -Math.random() * 0.5 - 0.2,
+        color: ['#A7F3D0', '#6EE7B7', '#FDE047', '#C084FC', '#67E8F9'][Math.floor(Math.random() * 5)]
+      })),
+
+      update() {
+        this.fireflies.forEach(f => {
+          f.alpha += f.pulseSpeed;
+          if (f.alpha > 1 || f.alpha < 0.15) {
+            f.pulseSpeed = -f.pulseSpeed;
+          }
+          f.x += f.vx;
+          f.y += f.vy;
+
+          if (f.y < -10) {
+            f.y = height - 80;
+            f.x = Math.random() * width;
+          }
+          if (f.x < -10) f.x = width + 10;
+          if (f.x > width + 10) f.x = -10;
+        });
+      },
+
+      draw() {
+        // Magical Crescent Moon / Floating Light Orb
+        ctx.save();
+        ctx.fillStyle = '#E0E7FF';
+        ctx.shadowColor = '#818CF8';
+        ctx.shadowBlur = 25;
+        ctx.beginPath();
+        ctx.arc(width - 60, 70, 24, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        // Background Glowing Silhouetted Magical Trees & Flora
+        ctx.save();
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.6)';
+        // Tree 1 (Left)
+        ctx.beginPath();
+        ctx.arc(20, 280, 70, 0, Math.PI * 2);
+        ctx.arc(70, 260, 50, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Tree 2 (Right)
+        ctx.beginPath();
+        ctx.arc(width - 20, 270, 80, 0, Math.PI * 2);
+        ctx.arc(width - 80, 290, 55, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Glowing Tree Aura Highlights
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.15)';
+        ctx.beginPath();
+        ctx.arc(40, 270, 65, 0, Math.PI * 2);
+        ctx.arc(width - 50, 280, 75, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        // Sparkling Fireflies & Magic Dust Orbs
+        this.fireflies.forEach(f => {
+          ctx.save();
+          ctx.globalAlpha = Math.min(1, Math.max(0.1, f.alpha));
+          ctx.fillStyle = f.color;
+          ctx.shadowColor = f.color;
+          ctx.shadowBlur = 12;
+
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, f.radius, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Soft Outer Bokeh Halo
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, f.radius * 2.8, 0, Math.PI * 2);
+          ctx.globalAlpha = Math.min(1, Math.max(0.1, f.alpha)) * 0.25;
+          ctx.fill();
+          ctx.restore();
+        });
+      }
+    };
+
+    // Mystical Forest Fog / Mist
+    const forestMist = {
+      items: [
+        { x: 20, y: 110, scale: 1.1, speed: 0.2 },
+        { x: 190, y: 170, scale: 1.4, speed: 0.35 },
+        { x: 320, y: 90, scale: 0.9, speed: 0.15 }
+      ],
+      update() {
+        this.items.forEach(c => {
+          c.x -= c.speed;
+          if (c.x < -120) {
+            c.x = width + 80;
+            c.y = Math.random() * (height * 0.35) + 40;
+          }
+        });
+      },
+      draw() {
+        ctx.fillStyle = 'rgba(167, 139, 250, 0.15)';
+        this.items.forEach(c => {
+          ctx.save();
+          ctx.translate(c.x, c.y);
+          ctx.scale(c.scale, c.scale);
+          
+          ctx.beginPath();
+          ctx.arc(0, 0, 25, Math.PI * 0.5, Math.PI * 1.5);
+          ctx.arc(30, -18, 30, Math.PI * 1, Math.PI * 1.85);
+          ctx.arc(70, -12, 25, Math.PI * 1.37, Math.PI * 1.91);
+          ctx.arc(90, 0, 25, Math.PI * 1.5, Math.PI * 0.5);
+          ctx.closePath();
+          ctx.fill();
+
+          ctx.restore();
+        });
+      }
+    };
+
+    // Pond Floor (연못 바닥)
+    const ground = {
+      height: 80,
+      offsetX: 0,
+      speed: 2.6,
+      waveTimer: 0,
+
+      update() {
+        this.waveTimer += 0.05;
+        if (currentState === STATE.PLAYING) {
+          this.offsetX = (this.offsetX + this.speed) % 60;
+        }
+      },
+
+      draw() {
+        const gY = height - this.height;
+
+        // Glowing Pond Water Body Gradient
+        const waterGrad = ctx.createLinearGradient(0, gY, 0, height);
+        waterGrad.addColorStop(0, '#06B6D4');  // Bright Cyan surface
+        waterGrad.addColorStop(0.2, '#0891B2');  // Deep Teal
+        waterGrad.addColorStop(0.65, '#0E7490'); // Lagoon Cyan
+        waterGrad.addColorStop(1, '#155E75');    // Dark Midnight Blue
+        ctx.fillStyle = waterGrad;
+        ctx.fillRect(0, gY, width, this.height);
+
+        // Animated Surface Waves
+        ctx.save();
+        ctx.fillStyle = 'rgba(165, 243, 252, 0.6)';
+        ctx.beginPath();
+        ctx.moveTo(0, gY);
+        for (let x = 0; x <= width; x += 10) {
+          const y = gY + Math.sin((x + this.offsetX * 4) * 0.06 + this.waveTimer * 1.8) * 3 - 2;
+          ctx.lineTo(x, y);
+        }
+        ctx.lineTo(width, gY + 10);
+        ctx.lineTo(0, gY + 10);
+        ctx.closePath();
+        ctx.fill();
+
+        // Underwater Water Ripples / Sparkles
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 4; i++) {
+          const rx = ((i * 110) - this.offsetX * 2.5 + width * 2) % (width + 60) - 30;
+          const ry = gY + 22 + i * 13;
+          ctx.beginPath();
+          ctx.ellipse(rx, ry, 18 + Math.sin(this.waveTimer + i) * 4, 3.5, 0, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        // Floating Water Lilies & Flowers on Pond Surface
+        const lotusPositions = [
+          { x: (60 - this.offsetX) % (width + 120) - 30, scale: 0.9 },
+          { x: (210 - this.offsetX) % (width + 120) - 30, scale: 1.15 },
+          { x: (350 - this.offsetX) % (width + 120) - 30, scale: 0.85 }
+        ];
+
+        lotusPositions.forEach(lp => {
+          let drawX = lp.x;
+          if (drawX < -40) drawX += width + 120;
+
+          ctx.save();
+          ctx.translate(drawX, gY + 3);
+          ctx.scale(lp.scale, lp.scale);
+          
+          // Lotus Leaf Body
+          ctx.fillStyle = '#10B981';
+          ctx.beginPath();
+          ctx.ellipse(0, 0, 15, 5, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Leaf Notch Line
+          ctx.strokeStyle = '#047857';
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(6, -4);
+          ctx.stroke();
+
+          // Lotus Flower Petals
+          ctx.fillStyle = '#F472B6';
+          ctx.beginPath();
+          ctx.arc(3, -3, 4.5, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = '#FEF08A';
+          ctx.beginPath();
+          ctx.arc(3, -3, 2, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.restore();
+        });
+
+        // Glowing Water Surface Edge Line
+        ctx.shadowColor = '#22D3EE';
+        ctx.shadowBlur = 10;
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = '#A5F3FC';
+        ctx.beginPath();
+        ctx.moveTo(0, gY);
+        ctx.lineTo(width, gY);
+        ctx.stroke();
+
+        ctx.restore();
+      }
+    };
+
+    // Glittering Night Stars & Moon Background
+    const nightSky = {
+      stars: Array.from({ length: 35 }, () => ({
+        x: Math.random() * 360,
+        y: Math.random() * 450,
+        radius: Math.random() * 1.8 + 0.6,
+        alpha: Math.random(),
+        twinkleSpeed: Math.random() * 0.03 + 0.01
+      })),
+
+      update() {
+        this.stars.forEach(s => {
+          s.alpha += s.twinkleSpeed;
+          if (s.alpha > 1 || s.alpha < 0.2) {
+            s.twinkleSpeed = -s.twinkleSpeed;
+          }
+        });
+      },
+
+      draw() {
+        // Draw Glowing Moon
+        ctx.save();
+        ctx.fillStyle = '#FEF08A';
+        ctx.shadowColor = '#FDE047';
+        ctx.shadowBlur = 15;
+        ctx.beginPath();
+        ctx.arc(width - 55, 75, 22, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        // Draw Twinkling Stars
+        this.stars.forEach(s => {
+          ctx.save();
+          ctx.globalAlpha = Math.min(1, Math.max(0.2, s.alpha));
+          ctx.fillStyle = '#FFFFFF';
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Star glow effect for larger stars
+          if (s.radius > 1.8) {
+            ctx.fillStyle = '#FEF08A';
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, s.radius * 2, 0, Math.PI * 2);
+            ctx.globalAlpha = Math.min(1, Math.max(0.2, s.alpha)) * 0.3;
+            ctx.fill();
+          }
+          ctx.restore();
+        });
+      }
+    };
+
+    // Scrolling Clouds (Night Sky Translucent Clouds)
+    const clouds = {
+      items: [
+        { x: 30, y: 70, scale: 0.9, speed: 0.3 },
+        { x: 200, y: 130, scale: 1.2, speed: 0.5 },
+        { x: 340, y: 50, scale: 0.7, speed: 0.2 }
+      ],
+      update() {
+        this.items.forEach(c => {
+          c.x -= c.speed;
+          if (c.x < -100) {
+            c.x = width + 60;
+            c.y = Math.random() * (height * 0.3) + 30;
+          }
+        });
+      },
+      draw() {
+        ctx.fillStyle = 'rgba(148, 163, 184, 0.25)';
+        this.items.forEach(c => {
+          ctx.save();
+          ctx.translate(c.x, c.y);
+          ctx.scale(c.scale, c.scale);
+          
+          ctx.beginPath();
+          ctx.arc(0, 0, 20, Math.PI * 0.5, Math.PI * 1.5);
+          ctx.arc(25, -15, 25, Math.PI * 1, Math.PI * 1.85);
+          ctx.arc(60, -10, 20, Math.PI * 1.37, Math.PI * 1.91);
+          ctx.arc(75, 0, 20, Math.PI * 1.5, Math.PI * 0.5);
+          ctx.closePath();
+          ctx.fill();
+
+          ctx.restore();
+        });
+      }
+    };
+
+    // Pipes System (Green Obstacle Columns)
+    const pipes = {
+      list: [],
+      width: 60,
+      gap: 150,
+      speed: 2.6,
+      spawnInterval: 100,
+      timer: 0,
+
+      reset() {
+        this.list = [];
+        this.timer = 0;
+      },
+
+      update() {
+        this.timer++;
+        if (this.timer >= this.spawnInterval) {
+          this.timer = 0;
+          const groundY = height - ground.height;
+          const minPipeHeight = 40;
+          const maxTop = groundY - this.gap - minPipeHeight;
+          const top = Math.floor(Math.random() * (maxTop - minPipeHeight)) + minPipeHeight;
+          const bottom = groundY - top - this.gap;
+
+          this.list.push({
+            x: width,
+            top: top,
+            bottom: bottom,
+            passed: false
+          });
+        }
+
+        for (let i = this.list.length - 1; i >= 0; i--) {
+          const p = this.list[i];
+          p.x -= this.speed;
+
+          if (!p.passed && p.x + this.width < bird.x) {
+            p.passed = true;
+            addScore();
+          }
+
+          if (p.x + this.width < 0) {
+            this.list.splice(i, 1);
+          }
+        }
+      },
+
+      draw() {
+        for (let p of this.list) {
+          const bottomY = height - ground.height - p.bottom;
+
+          // Pipe Gradient (Mossy Forest Green)
+          const pipeGrad = ctx.createLinearGradient(p.x, 0, p.x + this.width, 0);
+          pipeGrad.addColorStop(0, '#15803D');
+          pipeGrad.addColorStop(0.3, '#22C55E');
+          pipeGrad.addColorStop(0.8, '#16A34A');
+          pipeGrad.addColorStop(1, '#14532D');
+
+          ctx.fillStyle = pipeGrad;
+
+          // Top Pipe
+          ctx.fillRect(p.x, 0, this.width, p.top);
+          ctx.fillRect(p.x - 4, p.top - 20, this.width + 8, 20);
+
+          // Bottom Pipe
+          ctx.fillRect(p.x, bottomY, this.width, p.bottom);
+          ctx.fillRect(p.x - 4, bottomY, this.width + 8, 20);
+
+          // Outlines
+          ctx.strokeStyle = '#14532D';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(p.x, 0, this.width, p.top);
+          ctx.strokeRect(p.x - 4, p.top - 20, this.width + 8, 20);
+          ctx.strokeRect(p.x, bottomY, this.width, p.bottom);
+          ctx.strokeRect(p.x - 4, bottomY, this.width + 8, 20);
+        }
+      }
+    };
+
+    // Score Burst Particles
+    const particles = [];
+    function createScoreBurst(x, y) {
+      for (let i = 0; i < 14; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 5 + 2;
+        particles.push({
+          x: x,
+          y: y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          radius: Math.random() * 4 + 3,
+          color: ['#FFD700', '#FF5722', '#00E676', '#FF4081'][Math.floor(Math.random() * 4)],
+          alpha: 1,
+          decay: Math.random() * 0.03 + 0.02
+        });
+      }
+    }
+
+    function updateAndDrawParticles() {
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.alpha -= p.decay;
+
+        if (p.alpha <= 0) {
+          particles.splice(i, 1);
+          continue;
+        }
+
+        ctx.save();
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    let score = 0;
+
+    function addScore() {
+      score++;
+      liveScoreEl.textContent = score;
+      sound.playScore();
+      createScoreBurst(bird.x + 30, bird.y);
+
+      // Pulse animation effect on score text
+      liveScoreEl.classList.remove('scale-125');
+      void liveScoreEl.offsetWidth; // trigger reflow
+      liveScoreEl.classList.add('scale-125');
+    }
+
+    function checkCollisions() {
+      // Ground and Ceiling Collisions
+      const groundY = height - ground.height;
+      if (bird.y + bird.radius >= groundY) {
+        bird.y = groundY - bird.radius;
+        triggerGameOver();
+        return;
+      }
+      if (bird.y - bird.radius <= 0) {
+        bird.y = bird.radius;
+        bird.velocity = 0;
+      }
+
+      // Pipe Collisions (Circle vs AABB)
+      for (let p of pipes.list) {
+        // Top Pipe Box
+        if (circleBoxCollision(bird.x, bird.y, bird.radius - 2, p.x, 0, pipes.width, p.top)) {
+          triggerGameOver();
+          return;
+        }
+        // Bottom Pipe Box
+        const bottomY = height - ground.height - p.bottom;
+        if (circleBoxCollision(bird.x, bird.y, bird.radius - 2, p.x, bottomY, pipes.width, p.bottom)) {
+          triggerGameOver();
+          return;
+        }
+      }
+    }
+
+    function circleBoxCollision(cx, cy, radius, rx, ry, rw, rh) {
+      const closestX = Math.max(rx, Math.min(cx, rx + rw));
+      const closestY = Math.max(ry, Math.min(cy, ry + rh));
+
+      const distX = cx - closestX;
+      const distY = cy - closestY;
+      const distanceSquared = (distX * distX) + (distY * distY);
+
+      return distanceSquared < (radius * radius);
+    }
+
+    function triggerGameOver() {
+      sound.playGameOver();
+      currentState = STATE.GAMEOVER;
+
+      if (score > highScore) {
+        highScore = score;
+        localStorage.setItem('flappy_buddy_highscore', highScore.toString());
+        highScoreText.textContent = highScore;
+      }
+
+      finalScoreEl.textContent = score;
+      finalHighScoreEl.textContent = highScore;
+
+      gameScoreContainer.classList.add('opacity-0');
+      
+      setTimeout(() => {
+        gameOverOverlay.classList.remove('opacity-0', 'pointer-events-none');
+        gameOverCard.classList.remove('scale-90');
+        gameOverCard.classList.add('scale-100');
+      }, 300);
+    }
+
+    function startGame() {
+      sound.init();
+      score = 0;
+      liveScoreEl.textContent = '0';
+      bird.reset();
+      pipes.reset();
+      particles.length = 0;
+
+      // 선택한 난이도 설정 반영
+      const diff = DIFFICULTY[currentDifficulty];
+      pipes.gap = diff.gap;
+      pipes.speed = diff.speed;
+      pipes.spawnInterval = diff.spawnInterval;
+      ground.speed = diff.speed;
+
+      currentState = STATE.PLAYING;
+
+      // Overlay UI updates
+      startOverlay.classList.add('opacity-0', 'pointer-events-none');
+      gameOverOverlay.classList.add('opacity-0', 'pointer-events-none');
+      gameOverCard.classList.remove('scale-100');
+      gameOverCard.classList.add('scale-90');
+      gameScoreContainer.classList.remove('opacity-0');
+    }
+
+    function handleInput(e) {
+      if (e) {
+        // Prevent default spacebar scrolling
+        if (e.type === 'keydown' && e.code === 'Space') {
+          e.preventDefault();
+        }
+      }
+
+      sound.init();
+
+      if (currentState === STATE.MENU) {
+        startGame();
+      } else if (currentState === STATE.PLAYING) {
+        bird.jump();
+      }
+    }
+
+    // Event Listeners
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        handleInput(e);
+      }
+    });
+
+    canvas.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      handleInput(e);
+    });
+
+    startBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      startGame();
+    });
+
+    const diffEasyBtn = document.getElementById('diffEasy');
+    const diffNormalBtn = document.getElementById('diffNormal');
+    const diffHardBtn = document.getElementById('diffHard');
+
+    function setDifficulty(level) {
+      currentDifficulty = level;
+      
+      const activeClass = "py-2 px-1 rounded-xl font-extrabold text-xs border transition-all text-slate-950 shadow-md scale-105 ";
+      const inactiveClass = "py-2 px-1 rounded-xl font-bold text-xs border transition-all bg-slate-800 ";
+
+      diffEasyBtn.className = level === 'EASY' 
+        ? activeClass + "bg-emerald-500 border-emerald-400" 
+        : inactiveClass + "text-emerald-400 border-emerald-500/50 hover:bg-emerald-950/50";
+
+      diffNormalBtn.className = level === 'NORMAL' 
+        ? activeClass + "bg-amber-500 border-amber-400" 
+        : inactiveClass + "text-amber-400 border-amber-500/50 hover:bg-amber-950/50";
+
+      diffHardBtn.className = level === 'HARD' 
+        ? activeClass + "bg-rose-500 border-rose-400" 
+        : inactiveClass + "text-rose-400 border-rose-500/50 hover:bg-rose-950/50";
+    }
+
+    diffEasyBtn.addEventListener('click', (e) => { e.stopPropagation(); setDifficulty('EASY'); });
+    diffNormalBtn.addEventListener('click', (e) => { e.stopPropagation(); setDifficulty('NORMAL'); });
+    diffHardBtn.addEventListener('click', (e) => { e.stopPropagation(); setDifficulty('HARD'); });
+
+    restartBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      startGame();
+    });
+
+    // Sound toggle button
+    soundBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sound.enabled = !sound.enabled;
+      soundBtn.textContent = sound.enabled ? '🔊' : '🔇';
+      soundBtn.classList.toggle('opacity-50', !sound.enabled);
+    });
+
+    // Main Game Loop
+    function gameLoop() {
+      // Clear Screen
+      ctx.clearRect(0, 0, width, height);
+
+      // Draw Mystical Glowing Forest Sky Gradient
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, height);
+      skyGrad.addColorStop(0, '#0B0A26');    // Deep Mystical Violet
+      skyGrad.addColorStop(0.35, '#161B40'); // Midnight Indigo
+      skyGrad.addColorStop(0.7, '#0D3843');  // Ethereal Forest Teal
+      skyGrad.addColorStop(1, '#08262C');    // Deep Lagoon Green
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, width, height);
+
+      // Environment (Fireflies, Light Orbs, Mystical Mist)
+      dreamyForest.update();
+      dreamyForest.draw();
+      forestMist.update();
+      forestMist.draw();
+
+      if (currentState === STATE.PLAYING) {
+        bird.update();
+        pipes.update();
+        ground.update();
+        checkCollisions();
+      } else if (currentState === STATE.MENU) {
+        // Hovering motion in start screen
+        bird.y = height * 0.48 + Math.sin(Date.now() * 0.004) * 8;
+        bird.wingAngle += 0.15;
+        ground.update();
+      } else if (currentState === STATE.GAMEOVER) {
+        // Fall bird down to floor when game over
+        if (bird.y + bird.radius < height - ground.height) {
+          bird.velocity += bird.gravity;
+          bird.y += bird.velocity;
+          bird.rotation = Math.min(Math.PI / 2, bird.rotation + 0.1);
+        }
+      }
+
+      // Render Objects
+      pipes.draw();
+      ground.draw();
+      bird.draw();
+      updateAndDrawParticles();
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    // Start Game Loop on Window Load
+    window.onload = () => {
+      bird.reset();
+      requestAnimationFrame(gameLoop);
+    };
+  </script>
+</body>
+</html>
